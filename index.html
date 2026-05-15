@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ソウルバインド・アリーナ</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            /* スクロールバーを非表示にしつつスクロール可能に (ログエリア用) */
+            scrollbar-width: none; /* Firefox */
+        }
+        body::-webkit-scrollbar {
+            display: none; /* Chrome, Safari */
+        }
+        
+        /* カードの基本スタイル */
+        .card {
+            width: 100px;
+            height: 140px;
+            border: 2px solid #4B5563; /* gray-600 */
+            border-radius: 8px;
+            background-color: #F3F4F6; /* gray-100 */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 8px; /* パディングを元に戻す */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            color: #1F2937;
+            position: relative; /* z-indexと子要素の配置のため */
+        }
+        .card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.15);
+            z-index: 100 !important; /* ホバー時に最前面に */
+        }
+        
+        /* カード画像 (削除) */
+        /* .card-image-container { ... } */
+        
+        /* カードの裏側 */
+        .card-back {
+            background-color: #3B82F6; /* blue-500 */
+            border-color: #1D4ED8; /* blue-700 */
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: white;
+            font-weight: bold;
+            background-image: none !important; /* 裏面には画像を表示しない */
+        }
+        .card-back::after {
+            content: 'SB';
+        }
+        
+        /* カードのテキストエリア (削除) */
+        /* .card-text-area { ... } */
+        
+        /* カード名 */
+        .card-name {
+            font-size: 0.8rem; /* フォントサイズを戻す */
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center;
+            margin-bottom: 2px;
+            color: #000;
+            background-color: rgba(255, 255, 255, 0.7); /* 半透明の背景を追加 */
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        
+        /* カード能力・説明 */
+        .card-ability {
+            font-size: 0.7rem; /* フォントサイズとスタイルを戻す */
+            line-height: 1.2;
+            color: #1F2937; /* gray-900 */
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin: 4px 0;
+            word-wrap: break-word;
+            flex-grow: 1; /* 魔法カードでスペースを埋める */
+            min-height: auto; /* min-height を削除 */
+        }
+
+        /* カードコスト */
+        .card-cost {
+            position: absolute;
+            top: 4px;
+            left: 4px; /* 左上に変更 */
+            background-color: #FBBF24; /* amber-400 */
+            color: #4B5563; /* gray-600 */
+            border-radius: 9999px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            z-index: 10; /* 最前面に表示 */
+            border: 1px solid #B45309;
+        }
+        
+        /* 魔法カードのコスト色 */
+        .card-cost.spell {
+            background-color: #A78BFA; /* violet-400 */
+            border-color: #5B21B6; /* violet-700 */
+        }
+
+        /* カードステータス (モンスターのみ) */
+        .card-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem; /* フォントサイズを戻す */
+            font-weight: 600;
+            padding: 2px 4px; /* パディングを追加 */
+            background-color: rgba(255, 255, 255, 0.7); /* 半透明の背景を追加 */
+            border-radius: 4px;
+            margin-top: 2px; /* マージンを追加 */
+        }
+        .stat-power { color: #EF4444; /* red-500 */ }
+        .stat-defense { color: #22C55E; /* green-500 */ }
+
+        /* フィールドゾーン */
+        .field-zone {
+            width: 105px;
+            height: 145px;
+            border: 2px dashed #9CA3AF; /* gray-400 */
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.05);
+            transition: background-color 0.2s;
+        }
+        .field-zone.targetable {
+            background-color: #A7F3D0; /* green-200 */
+            border-color: #10B981; /* green-500 */
+            cursor: pointer;
+        }
+        
+        /* 手札エリア */
+        #player-hand, #cpu-hand {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 150px;
+            padding-left: 40px; /* ネガティブマージンによるズレを補正 */
+        }
+        
+        /* 手札エリア内のカードにネガティブマージンを適用 */
+        #player-hand > .card,
+        #cpu-hand > .card {
+            margin-left: -40px;
+        }
+        
+        /* 手札の最初のカードはマージンなし */
+        #player-hand > .card:first-child,
+        #cpu-hand > .card:first-child {
+            margin-left: 0;
+        }
+        
+        /* 選択中のカード */
+        .card.selected {
+            border-color: #3B82F6; /* blue-500 */
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.7);
+            transform: translateY(-10px) scale(1.1); /* 選択時により目立たせる */
+            z-index: 99 !important;
+        }
+        
+        /* 攻撃対象のハイライト */
+        .card.targetable, .player-avatar.targetable {
+            border: 3px solid #EF4444; /* red-500 */
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.7);
+            cursor: crosshair;
+        }
+        
+        /* 攻撃済みのカード */
+        .card.attacked {
+            opacity: 0.6;
+            filter: grayscale(80%);
+        }
+
+        /* リソース表示 */
+        .resource-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            padding: 8px 12px;
+            border-radius: 8px;
+            transition: all 0.2s ease-in-out;
+        }
+        .resource-display.targetable {
+            background-color: #60A5FA; /* blue-400 */
+            border-color: #2563EB; /* blue-600 */
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(96, 165, 250, 0.7);
+        }
+        
+        /* メッセージモーダル */
+        #message-modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-white min-h-screen flex items-center justify-center p-4">
+
+    <div id="game-container" class="w-full max-w-7xl mx-auto p-4 bg-gray-900 rounded-lg shadow-2xl relative">
+
+        <!-- ゲーム終了モーダル -->
+        <div id="message-modal" class="hidden absolute inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center opacity-0">
+            <div class="bg-white text-gray-900 p-8 rounded-lg shadow-xl text-center">
+                <h2 id="message-title" class="text-3xl font-bold mb-4"></h2>
+                <p id="message-text" class="text-lg mb-6"></p>
+                <button id="restart-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg text-lg">
+                    もう一度プレイ
+                </button>
+            </div>
+        </div>
+
+        <!-- CPUエリア -->
+        <div id="cpu-area" class="mb-4">
+            <!-- CPU ステータス & デッキ -->
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center gap-4">
+                    <!-- CPU アバター -->
+                    <div id="cpu-avatar" class="player-avatar p-3 bg-gray-700 rounded-full border-4 border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div id="cpu-life" class="resource-display bg-red-800 border-red-600">
+                            <span>LIFE:</span>
+                            <span id="cpu-life-value">20</span>
+                        </div>
+                        <div id="cpu-energy" class="resource-display bg-yellow-800 border-yellow-600 mt-1">
+                            <span>ENE:</span>
+                            <span id="cpu-energy-value">0</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- CPU デッキ & 墓地 -->
+                <div class="flex gap-4 items-center">
+                    <div id="cpu-graveyard" class="field-zone !w-24 !h-32" title="CPU 墓地"></div>
+                    <div id="cpu-deck" class="card card-back !w-24 !h-32" title="CPU デッキ">
+                        <span id="cpu-deck-count" class="text-white text-lg font-bold"></span>
+                    </div>
+                </div>
+            </div>
+            <!-- CPU 手札 -->
+            <div id="cpu-hand" class="mb-2">
+                <!-- CPUの手札はJSで描画 -->
+            </div>
+            <!-- CPU フィールド -->
+            <div id="cpu-field" class="flex justify-center gap-4">
+                <div id="cpu-field-left" class="field-zone"></div>
+                <div id="cpu-field-center" class="field-zone"></div>
+                <div id="cpu-field-right" class="field-zone"></div>
+            </div>
+        </div>
+
+        <!-- ターンエンドボタン -->
+        <div class="text-center my-4">
+            <button id="end-turn-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg text-xl transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                ターンエンド
+            </button>
+        </div>
+
+        <!-- プレイヤーエリア -->
+        <div id="player-area" class="mt-4">
+            <!-- プレイヤー フィールド -->
+            <div id="player-field" class="flex justify-center gap-4 mb-2">
+                <div id="player-field-left" class="field-zone" data-zone="left"></div>
+                <div id="player-field-center" class="field-zone" data-zone="center"></div>
+                <div id="player-field-right" class="field-zone" data-zone="right"></div>
+            </div>
+            <!-- プレイヤー 手札 -->
+            <div id="player-hand" class="mt-2">
+                <!-- プレイヤーの手札はJSで描画 -->
+            </div>
+            <!-- プレイヤー ステータス & デッキ -->
+            <div class="flex justify-between items-center mt-2">
+                <!-- プレイヤー デッキ & 墓地 -->
+                <div class="flex gap-4 items-center">
+                    <div id="player-deck" class="card card-back !w-24 !h-32" title="プレイヤー デッキ">
+                        <span id="player-deck-count" class="text-white text-lg font-bold"></span>
+                    </div>
+                    <div id="player-graveyard" class="field-zone !w-24 !h-32" title="プレイヤー 墓地"></div>
+                </div>
+                 <!-- プレイヤー ステータス & アバター -->
+                <div class="flex items-center gap-4">
+                    <div>
+                        <div id="player-life" class="resource-display bg-red-800 border-red-600">
+                            <span>LIFE:</span>
+                            <span id="player-life-value">20</span>
+                        </div>
+                        <div id="player-energy" class="resource-display bg-yellow-800 border-yellow-600 mt-1" title="手札のカードを選択してクリックするとエナジーにチャージできます">
+                            <span>ENE:</span>
+                            <span id="player-energy-value">0</span>
+                        </div>
+                    </div>
+                    <div id="player-avatar" class="player-avatar p-3 bg-gray-700 rounded-full border-4 border-gray-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ログエリア -->
+        <div id="log-area" class="mt-4 bg-gray-950 p-3 rounded-lg h-24 overflow-y-auto border border-gray-700 text-sm" style="scrollbar-width: none;">
+            <!-- ログはJSで追加 -->
+        </div>
+
+    </div>
+
+    <script>
+        // --- カードデータベース ---
+        // モンスターカードの定義
+        const cardDatabase = [
+            // Cost 1 Monsters
+            { id: 1, type: 'monster', name: "疾風の剣士", cost: 1, power: 2, hp: 1, 
+              image: "speedy swordsman, dynamic pose, light armor, fantasy art", description: "" },
+            // { id: 2, type: 'monster', name: "森の斥候", cost: 1, power: 1, hp: 2, image: "forest scout, nimble archer, hidden in trees, fantasy, detailed" }, // 削除
+            // { id: 3, type: 'monster', name: "火炎の見習い", cost: 1, power: 3, hp: 1, image: "fire apprentice, young mage, small fireball spell, arcane magic" }, // 40枚にするため削除
+            
+            // Cost 2 Monsters
+            { id: 4, type: 'monster', name: "鉄壁のドワーフ", cost: 2, power: 2, hp: 4, 
+              image: "dwarf warrior, heavy shield, axe, strong, detailed armor", description: "" },
+            // { id: 5, type: 'monster', name: "グリズリー・ベア", cost: 2, power: 3, hp: 3, 
+            //   image: "grizzly bear, fierce, forest background, powerful, wild nature", description: "" }, // 逆転カードと入れ替え
+            { id: 6, type: 'monster', name: "空飛ぶ魔術師", cost: 2, power: 4, hp: 2, 
+              image: "flying sorcerer, on a magic carpet, casting spell, sky background", 
+              description: "【速攻】(召喚したターンに攻撃できる)", hasRush: true },
+
+            // Cost 3 Monsters
+            { id: 7, type: 'monster', name: "白銀のパラディン", cost: 3, power: 4, hp: 5, 
+              image: "silver paladin, holy knight, shining armor, sword, divine light", 
+              description: "【召喚時】ライフを1回復する。", onSummonEffect: 'heal', value: 1 },
+            { id: 8, type: 'monster', name: "ミノタウロスの狂戦士", cost: 3, power: 5, hp: 4, 
+              image: "minotaur berserker, raging, holding huge axe, labyrinth, furious", description: "" },
+            { id: 9, type: 'monster', name: "大地の精霊", cost: 3, power: 3, hp: 6, 
+              image: "earth elemental, rock creature, moss and stone, ancient, powerful", description: "" },
+
+            // Spell Cards
+            // { id: 10, type: 'spell', name: "ファイアボール", cost: 1, effect: 'damage', target: 'opponentMonster', value: 3, // 40枚にするため削除
+            //   image: "a magic fireball, exploding, arcane energy, spell icon", 
+            //   description: "相手モンスター1体に3ダメージを与える。" },
+            { id: 11, type: 'spell', name: "賢者の知恵", cost: 2, effect: 'draw', target: 'none', value: 2, 
+              image: "an ancient tome, glowing, book of wisdom, magic spell", 
+              description: "カードを2枚引く。" },
+            { id: 12, type: 'spell', name: "破滅の光", cost: 3, effect: 'destroy', target: 'opponentMonster', value: 1, 
+              image: "holy light beam, striking down, divine smite, spell icon", 
+              description: "相手モンスター1体を破壊する。" },
+            { id: 13, type: 'spell', name: "魔力の奔流", cost: 1, effect: 'draw', target: 'none', value: 1,
+              image: "a swirling vortex of blue magical energy, magic spell",
+              description: "カードを1枚引く。" },
+            // 新しい逆転カード
+            { id: 14, type: 'spell', name: "復讐の業火", cost: 2, effect: 'boardWipeOpponentIfLosing', target: 'none', value: 10,
+              image: "massive explosion of fire and vengeance, dark flames, spell",
+              description: "自分のライフが10以下の場合、相手のモンスターを全て破壊する。" },
+        ];
+
+        // --- ゲーム状態管理 ---
+        let gameState = {};
+        // 画像キャッシュ (CSP対応のため不要に)
+        // const imageCache = new Map();
+
+        // --- DOM要素 ---
+        const dom = {
+            player: {
+                life: document.getElementById('player-life-value'),
+                energy: document.getElementById('player-energy'), // エリア全体
+                energyValue: document.getElementById('player-energy-value'), // 値のみ
+                deck: document.getElementById('player-deck'),
+                deckCount: document.getElementById('player-deck-count'),
+                graveyard: document.getElementById('player-graveyard'),
+                hand: document.getElementById('player-hand'),
+                field: {
+                    left: document.getElementById('player-field-left'),
+                    center: document.getElementById('player-field-center'),
+                    right: document.getElementById('player-field-right'),
+                },
+                avatar: document.getElementById('player-avatar'),
+            },
+            cpu: {
+                life: document.getElementById('cpu-life-value'),
+                energy: document.getElementById('cpu-energy-value'),
+                deck: document.getElementById('cpu-deck'),
+                deckCount: document.getElementById('cpu-deck-count'),
+                graveyard: document.getElementById('cpu-graveyard'),
+                hand: document.getElementById('cpu-hand'),
+                field: {
+                    left: document.getElementById('cpu-field-left'),
+                    center: document.getElementById('cpu-field-center'),
+                    right: document.getElementById('cpu-field-right'),
+                },
+                avatar: document.getElementById('cpu-avatar'),
+            },
+            endTurnBtn: document.getElementById('end-turn-btn'),
+            logArea: document.getElementById('log-area'),
+            messageModal: document.getElementById('message-modal'),
+            messageTitle: document.getElementById('message-title'),
+            messageText: document.getElementById('message-text'),
+            restartButton: document.getElementById('restart-button'),
+        };
+
+        // --- API & 画像関連 ---
+        // CSP (Content Security Policy) により外部画像の読み込みがブロックされるため、
+        // 以下の関数 (generateImage, generateAndCacheImage) は使用せず、
+        // createCardElement内でCSSグラデーションを生成する。
+        
+        /*
+        async function generateImage(prompt) { ... }
+        async function generateAndCacheImage(cardName, imagePrompt) { ... }
+        */
+
+        // --- ゲームロジック ---
+
+        /**
+         * ゲームの初期化
+         */
+        function initGame() {
+            let cardInstanceId = 0; 
+            
+            const createDeck = () => {
+                let deck = [];
+                for (let i = 0; i < 4; i++) { // 各カードを4枚ずつ
+                    cardDatabase.forEach(card => {
+                        deck.push({ 
+                            ...card, 
+                            instanceId: cardInstanceId++,
+                            currentHp: card.hp // 現在の体力
+                        });
+                    });
+                }
+                return shuffle(deck);
+            };
+
+            gameState = {
+                player: {
+                    deck: createDeck(),
+                    hand: [],
+                    field: { left: null, center: null, right: null },
+                    graveyard: [],
+                    life: 20,
+                    energy: 1,
+                },
+                cpu: {
+                    deck: createDeck(),
+                    hand: [],
+                    field: { left: null, center: null, right: null },
+                    graveyard: [],
+                    life: 20,
+                    energy: 1,
+                },
+                currentPlayer: 'player',
+                selectedCard: null, // { type: 'hand' | 'field', card, element }
+                turn: 1,
+                gameover: false,
+                isProcessing: false, // 処理中フラグ
+            };
+
+            // 初期手札を引く
+            for (let i = 0; i < 5; i++) {
+                drawCard('player');
+                drawCard('cpu');
+            }
+            
+            dom.logArea.innerHTML = '';
+            addLog("ゲーム開始！");
+            
+            updateUI();
+            
+            dom.messageModal.classList.add('hidden', 'opacity-0');
+        }
+
+        /**
+         * UIの全体更新
+         */
+        function updateUI() {
+            if (gameState.gameover) return;
+
+            // プレイヤー
+            dom.player.life.textContent = gameState.player.life;
+            dom.player.energyValue.textContent = gameState.player.energy;
+            dom.player.deckCount.textContent = gameState.player.deck.length;
+
+            // CPU
+            dom.cpu.life.textContent = gameState.cpu.life;
+            dom.cpu.energy.textContent = gameState.cpu.energy;
+            dom.cpu.deckCount.textContent = gameState.cpu.deck.length;
+
+            // 手札
+            renderHand(gameState.player.hand, dom.player.hand, 'player');
+            renderHand(gameState.cpu.hand, dom.cpu.hand, 'cpu');
+
+            // フィールド
+            renderField(gameState.player.field, dom.player.field, 'player');
+            renderField(gameState.cpu.field, dom.cpu.field, 'cpu');
+
+            // 墓地
+            renderGraveyard(gameState.player.graveyard, dom.player.graveyard);
+            renderGraveyard(gameState.cpu.graveyard, dom.cpu.graveyard);
+
+            // ターンボタン
+            dom.endTurnBtn.disabled = gameState.currentPlayer !== 'player' || gameState.isProcessing;
+        }
+
+        /**
+         * 手札を描画
+         */
+        function renderHand(hand, handElement, owner) {
+            handElement.innerHTML = '';
+            hand.forEach((card, index) => {
+                const cardEl = createCardElement(card, owner);
+                if (owner === 'player') {
+                    cardEl.addEventListener('click', (e) => onHandCardClick(e, card, cardEl));
+                }
+                cardEl.style.zIndex = index;
+                handElement.appendChild(cardEl);
+            });
+        }
+
+        /**
+         * フィールドを描画
+         */
+        function renderField(field, fieldElements, owner) {
+            ['left', 'center', 'right'].forEach(zone => {
+                const zoneEl = fieldElements[zone];
+                zoneEl.innerHTML = '';
+                const card = field[zone];
+                
+                if (card) {
+                    const cardEl = createCardElement(card, owner);
+                    if (owner === 'player') {
+                        cardEl.addEventListener('click', (e) => onFieldCardClick(e, card, cardEl, zone));
+                    } else {
+                        // CPUのカード（攻撃対象）
+                        cardEl.addEventListener('click', (e) => onTargetClick(e, 'monster', card, cardEl));
+                    }
+                    zoneEl.appendChild(cardEl);
+                }
+            });
+        }
+
+        /**
+         * 墓地を描画 (最後の1枚)
+         */
+        function renderGraveyard(graveyard, graveyardElement) {
+            graveyardElement.innerHTML = '';
+            if (graveyard.length > 0) {
+                const topCard = graveyard[graveyard.length - 1];
+                const cardEl = createCardElement(topCard, 'graveyard');
+                cardEl.style.opacity = '0.7';
+                cardEl.style.cursor = 'default';
+                graveyardElement.appendChild(cardEl);
+            }
+        }
+
+        /**
+         * カード要素を作成
+         */
+        function createCardElement(card, owner) {
+            const cardEl = document.createElement('div');
+            
+            if (owner === 'cpu' && gameState.cpu.hand.some(c => c.instanceId === card.instanceId)) {
+                cardEl.className = 'card card-back';
+                return cardEl;
+            }
+
+            cardEl.className = 'card';
+            cardEl.dataset.instanceId = card.instanceId;
+            
+            // CSP対応: 外部画像を読み込む代わりに、カードのプロンプトに基づいてCSS背景を設定
+            if (card.image) {
+                // imageプロンプト（カード名）からハッシュを生成（簡易的）
+                let hash = 0;
+                for (let i = 0; i < card.name.length; i++) {
+                    hash = card.name.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                
+                // 色相 (0-360) を決定
+                const hue = Math.abs(hash % 360);
+                let color1, color2;
+
+                if (card.type === 'monster') {
+                    // モンスター (暖色系グラデーション)
+                    color1 = `hsl(${hue}, 60%, 80%)`; // 明るい色
+                    color2 = `hsl(${(hue + 40) % 360}, 50%, 60%)`; // 暗い色
+                } else {
+                    // 魔法 (寒色系グラデーション)
+                    color1 = `hsl(${hue}, 70%, 75%)`; // 明るい色
+                    color2 = `hsl(${(hue + 60) % 360}, 60%, 55%)`; // 暗い色
+                }
+                
+                // 放射状グラデーションを背景として設定
+                cardEl.style.background = `radial-gradient(circle, ${color1} 0%, ${color2} 100%)`;
+                
+                // <img> タグのロジックは削除
+            } else {
+                 cardEl.style.backgroundColor = '#E5E7EB'; // gray-200
+            }
+            
+            // 3. Add Text Content (in a container)
+            // テキスト用のコンテナを作成 (z-indexは不要になった)
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'relative flex flex-col justify-between h-full'; // z-20 を削除
+            
+            const costClass = card.type === 'spell' ? 'card-cost spell' : 'card-cost';
+            const abilityText = card.description || '';
+            let contentHtml = '';
+
+            if (card.type === 'monster') {
+                contentHtml = `
+                    <div class="${costClass}">${card.cost}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-ability">${abilityText}</div>
+                    <div class="flex-grow"></div> 
+                    <div class="card-stats">
+                        <span class="stat-power">ATK: ${card.power}</span>
+                        <span class="stat-defense">HP: ${card.currentHp}</span>
+                    </div>
+                `;
+            } else if (card.type === 'spell') {
+                 contentHtml = `
+                    <div class="${costClass}">${card.cost}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-ability">${abilityText}</div>
+                    <div class="flex-grow"></div> <!-- 魔法カードでも高さを揃えるため -->
+                `;
+            }
+            
+            contentContainer.innerHTML = contentHtml;
+            cardEl.appendChild(contentContainer);
+
+            // 攻撃済みマーク
+            if (card.attacked) {
+                cardEl.classList.add('attacked');
+            }
+            
+            // 選択中マーク
+            if (gameState.selectedCard && gameState.selectedCard.card.instanceId === card.instanceId) {
+                cardEl.classList.add('selected');
+            }
+            
+            return cardEl;
+        }
+
+        // --- カード操作 ---
+
+        /**
+         * プレイヤーの手札のカードをクリック
+         */
+        async function onHandCardClick(event, card, element) {
+            event.stopPropagation();
+            if (gameState.currentPlayer !== 'player' || gameState.isProcessing) return;
+
+            // 選択解除
+            if (gameState.selectedCard && gameState.selectedCard.card.instanceId === card.instanceId) {
+                clearSelection();
+                return;
+            }
+
+            // 新しく選択
+            clearSelection();
+            gameState.selectedCard = { type: 'hand', card, element };
+            element.classList.add('selected');
+            
+            // --- カードタイプによる分岐 ---
+            if (card.type === 'monster') {
+                // モンスター：召喚可能なゾーンとチャージをハイライト
+                highlightSummonableZones(card.cost);
+                dom.player.energy.classList.add('targetable');
+            } 
+            else if (card.type === 'spell') {
+                
+                // --- 修正点 1: エナジーチェックを移動 ---
+                // if (gameState.player.energy < card.cost) { ... } のブロックを削除
+                
+                if (card.target === 'none') {
+                    // --- 修正点 2: 即時発動を削除 ---
+                    // addLog(`「${card.name}」を発動！ (コスト: ${card.cost})`); // 削除
+                    // await castSpell('player', card, null); // 削除
+                    // clearSelection(); // 削除
+                    
+                    // 代わりに、プレイヤーアバターを発動ボタンとしてハイライト
+                    if (gameState.player.energy >= card.cost) {
+                        dom.player.avatar.classList.add('targetable');
+                    } else {
+                        addLog("エナジーが足りません！ (発動不可)", "error");
+                    }
+
+                } else if (card.target === 'opponentMonster') {
+                    // 対象が必要な魔法
+                    // 発動に必要なエナジーがある場合のみ対象をハイライト
+                    if (gameState.player.energy >= card.cost) {
+                        highlightSpellTargets(card);
+                    } else {
+                         addLog("エナジーが足りません！ (発動不可)", "error");
+                    }
+                }
+                // 魔法もチャージできるように変更 (常にハイライト)
+                dom.player.energy.classList.add('targetable');
+            }
+        }
+
+        /**
+         * プレイヤーのフィールドのカードをクリック
+         */
+        function onFieldCardClick(event, card, element, zone) {
+            event.stopPropagation();
+            if (gameState.currentPlayer !== 'player' || card.attacked || gameState.isProcessing) return;
+
+            // 選択解除
+            if (gameState.selectedCard && gameState.selectedCard.card.instanceId === card.instanceId) {
+                clearSelection();
+                return;
+            }
+            
+            // 新しく選択 (攻撃元)
+            clearSelection();
+            gameState.selectedCard = { type: 'field', card, element, zone };
+            element.classList.add('selected');
+            
+            // 攻撃可能な対象をハイライト
+            highlightAttackableTargets();
+        }
+
+        /**
+         * 召喚可能なゾーンをハイライト
+         */
+        function highlightSummonableZones(cost) {
+            const player = gameState.player;
+            if (player.energy < cost) return; // エナジー不足
+
+            ['left', 'center', 'right'].forEach(zone => {
+                if (!player.field[zone]) {
+                    dom.player.field[zone].classList.add('targetable');
+                }
+            });
+        }
+        
+        /**
+         * 攻撃可能な対象をハイライト
+         */
+        function highlightAttackableTargets() {
+            const cpuField = gameState.cpu.field;
+            let canAttackPlayer = true;
+
+            // センターにモンスターがいるかチェック
+            if (cpuField.center) {
+                const centerCardEl = dom.cpu.field.center.querySelector('.card');
+                if (centerCardEl) centerCardEl.classList.add('targetable');
+                canAttackPlayer = false; // センターがいるのでプレイヤーには攻撃不可
+            } else {
+                // センターがいない場合、他のモンスターをハイライト
+                ['left', 'right'].forEach(zone => {
+                    if (cpuField[zone]) {
+                        const cardEl = dom.cpu.field[zone].querySelector('.card');
+                        if (cardEl) cardEl.classList.add('targetable');
+                    }
+                });
+            }
+
+            // プレイヤーアバターをハイライト
+            if (canAttackPlayer) {
+                dom.cpu.avatar.classList.add('targetable');
+            }
+        }
+        
+        /**
+         * 魔法の対象をハイライト
+         */
+        function highlightSpellTargets(spellCard) {
+            if (spellCard.target === 'opponentMonster') {
+                ['left', 'center', 'right'].forEach(zone => {
+                    if (gameState.cpu.field[zone]) {
+                        const cardEl = dom.cpu.field[zone].querySelector('.card');
+                        if (cardEl) cardEl.classList.add('targetable');
+                    }
+                });
+            }
+        }
+
+        /**
+         * プレイヤーアバターをクリック (対象不要の魔法を発動)
+         */
+        async function onPlayerAvatarClick() {
+            if (gameState.currentPlayer !== 'player' || gameState.isProcessing) return;
+
+            const selected = gameState.selectedCard;
+
+            // 手札の対象不要魔法を発動
+            if (selected && selected.type === 'hand' && selected.card.type === 'spell' && selected.card.target === 'none') {
+                
+                const card = selected.card;
+                
+                if (gameState.player.energy < card.cost) {
+                    addLog("エナジーが足りません！", "error");
+                    clearSelection();
+                    return;
+                }
+
+                // 発動
+                addLog(`「${card.name}」を発動！ (コスト: ${card.cost})`);
+                await castSpell('player', card, null);
+                clearSelection();
+            }
+        }
+
+        /**
+         * 攻撃対象（モンスターまたはプレイヤー）をクリック
+         */
+        async function onTargetClick(event, targetType, targetCard, targetElement) {
+            event.stopPropagation();
+            if (gameState.currentPlayer !== 'player' || gameState.isProcessing) return;
+
+            const selected = gameState.selectedCard;
+            if (!selected) return;
+
+            // --- 選択肢1: フィールドのモンスターで攻撃 ---
+            if (selected.type === 'field' && selected.card.type === 'monster') {
+                if (selected.card.attacked) {
+                    clearSelection();
+                    return;
+                }
+                
+                const attackerCard = selected.card;
+                const cpuField = gameState.cpu.field;
+
+                // センターにモンスターがいるのに他を攻撃しようとしたかチェック
+                if (cpuField.center && 
+                    ( (targetType === 'monster' && targetCard.instanceId !== cpuField.center.instanceId) || targetType === 'player') )
+                {
+                    addLog("センターにモンスターがいます！センターを先に攻撃してください。", "error");
+                    return;
+                }
+
+                // --- 攻撃実行 ---
+                gameState.isProcessing = true;
+                attackerCard.attacked = true;
+                addLog(`プレイヤーの「${attackerCard.name}」が攻撃！`);
+
+                if (targetType === 'monster') {
+                    // モンスターへの攻撃
+                    addLog(`CPUの「${targetCard.name}」に攻撃！`);
+                    
+                    // --- 修正点 1: 反撃ダメージの処理 ---
+                    const attackerPower = attackerCard.power;
+                    const targetPower = targetCard.power; // 相手のパワーを取得
+                    
+                    targetCard.currentHp -= attackerPower;
+                    attackerCard.currentHp -= targetPower; // 反撃ダメージ
+                    
+                    addLog(`「${targetCard.name}」は${attackerPower}ダメージを受け、残りHP: ${targetCard.currentHp}`);
+                    addLog(`「${attackerCard.name}」は反撃で${targetPower}ダメージを受け、残りHP: ${attackerCard.currentHp}`);
+                    
+                    await new Promise(r => setTimeout(r, 500)); // 戦闘アニメーション待機
+                    
+                    // 攻撃された側(CPU)の破壊判定
+                    if (targetCard.currentHp <= 0) {
+                        addLog(`「${targetCard.name}」を破壊！`);
+                        sendToGraveyard('cpu', targetCard);
+                    }
+                    
+                    // 攻撃した側(Player)の破壊判定
+                    if (attackerCard.currentHp <= 0) {
+                        addLog(`「${attackerCard.name}」は反撃で破壊された！`);
+                        sendToGraveyard('player', attackerCard);
+                    }
+                    // --- 修正ここまで ---
+
+                } 
+                else if (targetType === 'player') {
+                    // プレイヤーへの攻撃
+                    addLog(`CPUプレイヤーに${attackerCard.power}ダメージ！`);
+                    gameState.cpu.life -= attackerCard.power;
+                    checkWinCondition();
+                }
+
+                clearSelection();
+                gameState.isProcessing = false;
+                updateUI();
+            }
+            // --- 選択肢2: 手札の魔法を発動 ---
+            else if (selected.type === 'hand' && selected.card.type === 'spell') {
+                const spellCard = selected.card;
+                
+                if (spellCard.target === 'opponentMonster' && targetType === 'monster') {
+                    // confirm() は iframe 環境では動作しないため、即時発動に変更
+                    // if (confirm(`「${spellCard.name}」を「${targetCard.name}」に発動しますか？ (コスト: ${spellCard.cost})`)) {
+                    addLog(`「${spellCard.name}」を「${targetCard.name}」に発動！ (コスト: ${spellCard.cost})`);
+                    await castSpell('player', spellCard, targetCard);
+                    // }
+                    clearSelection();
+                }
+            }
+        }
+        
+        /**
+         * フィールドゾーンをクリック (モンスターを召喚)
+         */
+        function onFieldZoneClick(zone) {
+            if (gameState.currentPlayer !== 'player' || gameState.isProcessing) return;
+
+            const selected = gameState.selectedCard;
+
+            // 手札からモンスターを召喚
+            if (selected && selected.type === 'hand' && selected.card.type === 'monster') {
+                // クリックされたゾーンが召喚可能かチェック
+                if (!dom.player.field[zone].classList.contains('targetable')) {
+                    if (gameState.player.energy < selected.card.cost) {
+                         addLog("エナジーが足りません！", "error");
+                    } else if (gameState.player.field[zone]) {
+                         addLog("そのゾーンは既に埋まっています。", "error");
+                    } else {
+                         addLog("そのゾーンには召喚できません。", "error");
+                    }
+                    clearSelection();
+                    return;
+                }
+
+                const card = selected.card;
+                
+                // エナジー消費
+                gameState.player.energy -= card.cost;
+                // 手札から削除
+                gameState.player.hand = gameState.player.hand.filter(c => c.instanceId !== card.instanceId);
+                
+                // フィールドに配置
+                const attacked = card.hasRush ? false : true; // 速攻持ちかチェック
+                gameState.player.field[zone] = { ...card, attacked: attacked };
+                
+                addLog(`プレイヤーが「${card.name}」を${zone}に召喚！`);
+                
+                // 召喚時効果
+                if (card.onSummonEffect) {
+                    handleOnSummonEffect('player', card);
+                }
+
+                clearSelection();
+                updateUI();
+            }
+        }
+
+        /**
+         * エナジーゾーンをクリック (チャージ)
+         */
+        function onEnergyChargeClick() {
+            if (gameState.currentPlayer !== 'player' || gameState.isProcessing) return;
+
+            const selected = gameState.selectedCard;
+            
+            // 手札のモンスターまたは魔法をチャージ
+            if (selected && selected.type === 'hand' && (selected.card.type === 'monster' || selected.card.type === 'spell')) {
+                const card = selected.card;
+                
+                // 手札から削除
+                gameState.player.hand = gameState.player.hand.filter(c => c.instanceId !== card.instanceId);
+                // 墓地に送る
+                sendToGraveyard('player', card);
+                // エナジーを増やす
+                gameState.player.energy++;
+                
+                addLog(`プレイヤーが「${card.name}」をチャージし、エナジーが1増えた。`);
+                clearSelection();
+                updateUI();
+            }
+        }
+
+        /**
+         * 魔法の発動
+         */
+        async function castSpell(owner, spellCard, targetCard) {
+            const playerState = gameState[owner];
+            
+            if (playerState.energy < spellCard.cost) {
+                 addLog("エナジーが足りません！", "error");
+                 return;
+            }
+            
+            gameState.isProcessing = true;
+            
+            // エナジー消費
+            playerState.energy -= spellCard.cost;
+            // 手札から削除
+            playerState.hand = playerState.hand.filter(c => c.instanceId !== spellCard.instanceId);
+            
+            addLog(`${owner === 'player' ? 'プレイヤー' : 'CPU'}が「${spellCard.name}」を発動！`);
+
+            // 効果処理
+            switch (spellCard.effect) {
+                case 'draw':
+                    addLog(`カードを${spellCard.value}枚引く。`);
+                    for (let i = 0; i < spellCard.value; i++) {
+                        drawCard(owner);
+                    }
+                    break;
+                case 'damage':
+                    if (targetCard) {
+                        addLog(`「${targetCard.name}」に${spellCard.value}ダメージ！`);
+                        targetCard.currentHp -= spellCard.value;
+                        if (targetCard.currentHp <= 0) {
+                            addLog(`「${targetCard.name}」を破壊！`);
+                            // 破壊される側 (ownerの反対)
+                            sendToGraveyard(owner === 'player' ? 'cpu' : 'player', targetCard);
+                        } else {
+                            addLog(`「${targetCard.name}」の残りHP: ${targetCard.currentHp}`);
+                        }
+                    }
+                    break;
+                case 'destroy':
+                    if (targetCard) {
+                        addLog(`「${targetCard.name}」を破壊！`);
+                        sendToGraveyard(owner === 'player' ? 'cpu' : 'player', targetCard);
+                    }
+                    break;
+                // 新しい効果
+                case 'boardWipeOpponentIfLosing':
+                    if (playerState.life <= spellCard.value) { // value = 10
+                        addLog(`「${spellCard.name}」の効果発動！ライフが${spellCard.value}以下だ！`);
+                        const opponent = (owner === 'player' ? 'cpu' : 'player');
+                        const opponentField = gameState[opponent].field;
+                        let destroyed = false;
+                        ['left', 'center', 'right'].forEach(zone => {
+                            if (opponentField[zone]) {
+                                addLog(`相手の「${opponentField[zone].name}」を破壊！`);
+                                sendToGraveyard(opponent, opponentField[zone]);
+                                destroyed = true;
+                            }
+                        });
+                        if (!destroyed) {
+                            addLog("相手のフィールドにモンスターがいなかった。");
+                        }
+                    } else {
+                        addLog(`「${spellCard.name}」は不発に終わった (ライフが${spellCard.value}より多い)。`);
+                    }
+                    break;
+            }
+
+            // 魔法を墓地に送る
+            sendToGraveyard(owner, spellCard);
+            
+            await new Promise(r => setTimeout(r, 500)); // 効果処理待機
+            
+            gameState.isProcessing = false;
+            updateUI();
+        }
+        
+        /**
+         * 召喚時効果の処理
+         */
+        function handleOnSummonEffect(owner, card) {
+            const playerState = gameState[owner];
+            
+            switch (card.onSummonEffect) {
+                case 'heal':
+                    addLog(`「${card.name}」の効果で、${owner === 'player' ? 'プレイヤー' : 'CPU'}のライフが${card.value}回復。`);
+                    playerState.life += card.value;
+                    // ライフの上限は20
+                    if (playerState.life > 20) playerState.life = 20;
+                    break;
+            }
+        }
+
+
+        /**
+         * 選択とハイライトをすべて解除
+         */
+        function clearSelection() {
+            gameState.selectedCard = null;
+            document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('.targetable').forEach(el => el.classList.remove('targetable'));
+            dom.player.energy.classList.remove('targetable');
+            dom.player.avatar.classList.remove('targetable'); // プレイヤーアバターのハイライトも解除
+        }
+
+
+        // --- ターン進行 ---
+
+        /**
+         * ターン終了
+         */
+        function endTurn() {
+            if (gameState.currentPlayer !== 'player' || gameState.gameover || gameState.isProcessing) return;
+            
+            clearSelection();
+            addLog("プレイヤーのターン終了。");
+            
+            // プレイヤーモンスターの攻撃済み状態をリセット
+            Object.values(gameState.player.field).forEach(card => {
+                if(card) card.attacked = false;
+            });
+            
+            gameState.currentPlayer = 'cpu';
+            dom.endTurnBtn.disabled = true;
+            updateUI();
+
+            // CPUのターンを実行
+            setTimeout(executeCpuTurn, 1000);
+        }
+
+        /**
+         * CPUのターンロジック
+         */
+        async function executeCpuTurn() {
+            if (gameState.gameover) return;
+            
+            gameState.isProcessing = true;
+            addLog("CPUのターン開始。");
+
+            // 1. スタートフェイズ (ドローとエナジー)
+            drawCard('cpu');
+            gameState.cpu.energy += 1;
+            addLog("CPUがドローし、エナジーを1得た。");
+            updateUI();
+            await new Promise(r => setTimeout(r, 1000));
+
+            // 2. メインフェイズ (チャージ、魔法、召喚)
+            
+            // --- CPUチャージロジック ---
+            const hand = gameState.cpu.hand;
+            const energy = gameState.cpu.energy;
+            // 手札が6枚以上、またはエナジーが2以下でコスト3のカードを持っている場合、チャージを検討
+            const needsCharge = hand.length >= 6 || (energy <= 2 && hand.some(c => c.cost === 3));
+            if (needsCharge) {
+                // チャージ候補：
+                // 1. 一番パワーの低いコスト1モンスター
+                let chargeCandidate = hand
+                    .filter(c => c.type === 'monster' && c.cost === 1)
+                    .sort((a, b) => a.power - b.power)[0];
+                
+                // 2. いなければ、一番コストの低い魔法
+                if (!chargeCandidate) {
+                    chargeCandidate = hand
+                        .filter(c => c.type === 'spell')
+                        .sort((a, b) => a.cost - b.cost)[0];
+                }
+                
+                // 3. それもいなければ、一番パワーの低い（コスト1以外の）モンスター
+                if (!chargeCandidate) {
+                     chargeCandidate = hand
+                        .filter(c => c.type === 'monster')
+                        .sort((a, b) => a.power - b.power)[0];
+                }
+
+                if (chargeCandidate) {
+                    gameState.cpu.hand = gameState.cpu.hand.filter(c => c.instanceId !== chargeCandidate.instanceId);
+                    sendToGraveyard('cpu', chargeCandidate);
+                    gameState.cpu.energy++;
+                    addLog(`CPUが手札を1枚チャージし、エナジーが1増えた。`);
+                    updateUI();
+                    await new Promise(r => setTimeout(r, 500));
+                }
+            }
+
+            // --- CPU魔法ロジック ---
+            let spellCasted = true;
+            while (spellCasted) {
+                spellCasted = false;
+                const usableSpells = gameState.cpu.hand
+                    .filter(c => c.type === 'spell' && c.cost <= gameState.cpu.energy)
+                    .sort((a,b) => b.cost - a.cost); // コストが高い順
+                
+                for (const spell of usableSpells) {
+                    if (spell.target === 'none') { // ドロー系 or 条件付き全体破壊
+                        if (spell.effect === 'draw') {
+                            await castSpell('cpu', spell, null);
+                            spellCasted = true;
+                            break; // 1回発動したらループやり直し
+                        }
+                        else if (spell.effect === 'boardWipeOpponentIfLosing') {
+                            // 自分のライフが10以下で、相手フィールドにモンスターが2体以上いるなら使う
+                            if (gameState.cpu.life <= spell.value && 
+                                Object.values(gameState.player.field).filter(c => c).length >= 2) 
+                            {
+                                await castSpell('cpu', spell, null);
+                                spellCasted = true;
+                                break;
+                            }
+                        }
+                    } 
+                    else if (spell.target === 'opponentMonster') {
+                        // 対象： プレイヤーのセンター ＞ プレイヤーの一番パワーが高いモンスター
+                        let target = gameState.player.field.center;
+                if (!target) {
+                    target = [gameState.player.field.left, gameState.player.field.right]
+                        .filter(c => c)
+                        .sort((a, b) => b.power - a.power)[0];
+                }
+
+                // 魔法の効果処理
+                if (spell.effect === 'destroy' && target) {
+                     await castSpell('cpu', spell, target);
+                     spellCasted = true;
+                     break;
+                } else if (spell.effect === 'damage' && target) {
+                    // ダメージで破壊できる一番パワーの高いモンスターを狙う
+                    let damageTarget = [
+                        gameState.player.field.center, 
+                        gameState.player.field.left, 
+                        gameState.player.field.right
+                    ].filter(c => c && c.currentHp <= spell.value)
+                     .sort((a, b) => b.power - a.power)[0];
+                    
+                    if(damageTarget) {
+                        await castSpell('cpu', spell, damageTarget);
+                        spellCasted = true;
+                        break;
+                    }
+                }
+            } // <-- `else if (spell.target === 'opponentMonster')` はここで閉じる
+            // 以下の行は `for` ループの外側、 `while` ループの内側にあるべきなので削除
+            // if (spellCasted) await new Promise(r => setTimeout(r, 1000)); 
+        } // <-- `for (const spell of usableSpells)` ループはここで閉じる
+                        
+        // --- 以下の重複・構文エラーブロックを削除 ---
+        /*
+                        // 破壊系（破滅の光）: 厄介なのを狙う
+                        if (spell.effect === 'destroy' && target) {
+                             await castSpell('cpu', spell, target);
+                             spellCasted = true;
+                             break;
+                        }
+                    } 
+                }
+        */
+        // --- 削除ここまで ---
+                
+                // 魔法が発動していたら(break)、待機してから while ループを再評価
+                if (spellCasted) await new Promise(r => setTimeout(r, 1000));
+            } // <-- `while (spellCasted)` ループはここで閉じる
+
+
+            // --- CPU召喚ロジック ---
+            // エナジーが続く限り、召喚できる一番強いモンスターを召喚
+            let summoned = true;
+            while(summoned) {
+                summoned = false;
+                const summonableCard = gameState.cpu.hand
+                    .filter(card => card.type === 'monster' && card.cost <= gameState.cpu.energy)
+                    .sort((a, b) => b.cost - a.cost)[0]; // 一番コストが高い(強い)やつ
+                
+                if (summonableCard) {
+                    let zoneToSummon = null;
+                    if (!gameState.cpu.field.center) zoneToSummon = 'center';
+                    else if (!gameState.cpu.field.left) zoneToSummon = 'left';
+                    else if (!gameState.cpu.field.right) zoneToSummon = 'right';
+
+                    if (zoneToSummon) {
+                        gameState.cpu.energy -= summonableCard.cost;
+                        gameState.cpu.hand = gameState.cpu.hand.filter(c => c.instanceId !== summonableCard.instanceId);
+                        
+                        // 速攻(hasRush)を持たない限り、召喚ターンは攻撃不可
+                        const attacked = summonableCard.hasRush ? false : true;
+                        gameState.cpu.field[zoneToSummon] = { ...summonableCard, attacked: attacked };
+                        
+                        addLog(`CPUが「${summonableCard.name}」を${zoneToSummon}に召喚！`);
+                        
+                        // 召喚時効果
+                        if(summonableCard.onSummonEffect) {
+                            handleOnSummonEffect('cpu', summonableCard);
+                        }
+                        
+                        updateUI();
+                        summoned = true;
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+            }
+            
+            await new Promise(r => setTimeout(r, 500));
+
+            // 3. バトルフェイズ (攻撃)
+            addLog("CPUのバトルフェイズ。");
+            const attackers = Object.values(gameState.cpu.field).filter(c => c && !c.attacked)
+                                  .sort((a,b) => b.power - a.power); // パワー高い順
+            
+            for (const attacker of attackers) {
+                if (gameState.gameover) break;
+                
+                let target = null;
+                let targetType = 'none';
+                const playerField = gameState.player.field;
+
+                // センターにモンスターがいるか？
+                if (playerField.center) {
+                    target = playerField.center;
+                    targetType = 'monster';
+                } else {
+                    // 倒せるモンスターを探す (パワーが高い順)
+                    let killableTarget = [playerField.left, playerField.right]
+                        .filter(c => c && c.currentHp <= attacker.power)
+                        .sort((a,b) => b.power - a.power)[0];
+                    
+                    if (killableTarget) {
+                        target = killableTarget;
+                        targetType = 'monster';
+                    } else {
+                        // 倒せるモンスターがいないならプレイヤーを攻撃
+                        targetType = 'player';
+                    }
+                }
+
+                // 攻撃実行
+                if (targetType === 'monster') {
+                    addLog(`CPUの「${attacker.name}」が「${target.name}」に攻撃！`);
+
+                    // --- 修正点 2: 反撃ダメージの処理 ---
+                    const attackerPower = attacker.power;
+                    const targetPower = target.power; // 相手のパワーを取得
+
+                    target.currentHp -= attackerPower;
+                    attacker.currentHp -= targetPower; // 反撃ダメージ
+
+                    addLog(`「${target.name}」は${attackerPower}ダメージを受け、残りHP: ${target.currentHp}`);
+                    addLog(`「${attacker.name}」は反撃で${targetPower}ダメージを受け、残りHP: ${attacker.currentHp}`);
+
+                    // 攻撃された側(プレイヤー)の破壊判定
+                    if (target.currentHp <= 0) {
+                        addLog(`「${target.name}」は破壊された！`);
+                        sendToGraveyard('player', target);
+                    }
+
+                    // 攻撃した側(CPU)の破壊判定
+                    if (attacker.currentHp <= 0) {
+                        addLog(`「${attacker.name}」は反撃で破壊された！`);
+                        sendToGraveyard('cpu', attacker);
+                    }
+                    // --- 修正ここまで ---
+
+                } else if (targetType === 'player') {
+                    addLog(`CPUの「${attacker.name}」がプレイヤーに攻撃！`);
+                    gameState.player.life -= attacker.power;
+                    addLog(`プレイヤーは${attacker.power}ダメージを受けた！`);
+                    checkWinCondition();
+                }
+                
+                attacker.attacked = true; // CPUも攻撃済みに
+                updateUI();
+                await new Promise(r => setTimeout(r, 1000)); // 1秒ごとに攻撃
+            }
+            
+            // バトル終了後、ターンをプレイヤーに戻す
+            gameState.isProcessing = false;
+            if (!gameState.gameover) {
+                setTimeout(startPlayerTurn, 1000);
+            }
+        }
+        
+        /**
+         * プレイヤーのターンを開始
+         */
+        function startPlayerTurn() {
+            if (gameState.gameover) return;
+            
+            addLog("CPUのターン終了。");
+            
+            // CPUモンスターの攻撃済み状態をリセット
+            Object.values(gameState.cpu.field).forEach(card => {
+                if(card) card.attacked = false;
+            });
+            
+            gameState.currentPlayer = 'player';
+            gameState.turn++;
+            gameState.isProcessing = false;
+
+            // 1. スタートフェイズ (ドローとエナジー)
+            drawCard('player');
+            gameState.player.energy += 1;
+            addLog("プレイヤーのターン。ドローし、エナジーを1得た。");
+            
+            // プレイヤーモンスターの攻撃済み状態をリセット (UI反映のため)
+            Object.values(gameState.player.field).forEach(card => {
+                if(card) card.attacked = false;
+            });
+
+            dom.endTurnBtn.disabled = false;
+            updateUI();
+        }
+
+        // --- ユーティリティ ---
+
+        /**
+         * カードをデッキから引く
+         */
+        function drawCard(owner) {
+            const playerState = gameState[owner];
+            if (playerState.deck.length > 0) {
+                const card = playerState.deck.pop();
+                playerState.hand.push(card);
+            } else {
+                addLog(`${owner === 'player' ? 'プレイヤー' : 'CPU'}のデッキが切れました！`, "error");
+            }
+        }
+        
+        /**
+         * カードを墓地に送る
+         */
+        function sendToGraveyard(owner, card) {
+            const playerState = gameState[owner];
+            // フィールドから削除
+            Object.keys(playerState.field).forEach(zone => {
+                if (playerState.field[zone] && playerState.field[zone].instanceId === card.instanceId) {
+                    playerState.field[zone] = null;
+                }
+            });
+            // 墓地に追加 (ステータスリセット)
+            card.currentHp = card.hp;
+            card.attacked = false;
+            playerState.graveyard.push(card);
+        }
+
+        /**
+         * 配列をシャッフル (Fisher-Yates)
+         */
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        /**
+         * ログを追加
+         */
+        function addLog(message, type = "info") {
+            const logEntry = document.createElement('p');
+            if (type === "error") logEntry.className = 'text-red-400';
+            if (type === "success") logEntry.className = 'text-green-400';
+            logEntry.textContent = `[T${gameState.turn}] ${message}`;
+            dom.logArea.appendChild(logEntry);
+            // 自動スクロール
+            dom.logArea.scrollTop = dom.logArea.scrollHeight;
+        }
+        
+        /**
+         * 勝利条件のチェック
+         */
+        function checkWinCondition() {
+            if (gameState.gameover) return;
+            
+            if (gameState.player.life <= 0) {
+                dom.player.life.textContent = 0; // ライフがマイナス表示にならないように
+                showEndGameModal("敗北...", "CPUに敗北しました。");
+            } else if (gameState.cpu.life <= 0) {
+                dom.cpu.life.textContent = 0;
+                showEndGameModal("勝利！", "CPUに勝利しました！");
+            }
+        }
+        
+        /**
+         * ゲーム終了モーダルを表示
+         */
+        function showEndGameModal(title, text) {
+            gameState.gameover = true;
+            gameState.isProcessing = true; // 全ての操作を停止
+            dom.endTurnBtn.disabled = true;
+            dom.messageTitle.textContent = title;
+            dom.messageText.textContent = text;
+            dom.messageModal.classList.remove('hidden');
+            setTimeout(() => dom.messageModal.classList.remove('opacity-0'), 10); // フェードイン
+        }
+
+
+        // --- イベントリスナー ---
+        dom.endTurnBtn.addEventListener('click', endTurn);
+        dom.restartButton.addEventListener('click', initGame);
+
+        // フィールドゾーン
+        dom.player.field.left.addEventListener('click', () => onFieldZoneClick('left'));
+        dom.player.field.center.addEventListener('click', () => onFieldZoneClick('center'));
+        dom.player.field.right.addEventListener('click', () => onFieldZoneClick('right'));
+
+        // エナジーゾーン
+        dom.player.energy.addEventListener('click', onEnergyChargeClick);
+
+        // プレイヤーアバター (魔法発動用)
+        dom.player.avatar.addEventListener('click', onPlayerAvatarClick);
+        
+        // 攻撃対象としてのCPUアバター
+        dom.cpu.avatar.addEventListener('click', (e) => onTargetClick(e, 'player', null, dom.cpu.avatar));
+        
+        // 背景クリックで選択解除
+        document.getElementById('game-container').addEventListener('click', (e) => {
+            // ターゲットがコンテナ自身（またはその直下）であること
+            if (e.target.id === 'game-container' || e.target.id === 'player-area' || e.target.id === 'cpu-area') {
+                clearSelection();
+            }
+        });
+
+
+        // --- ゲーム開始 ---
+        initGame();
+
+    </script>
+</body>
+</html>
